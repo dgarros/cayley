@@ -21,6 +21,7 @@ var (
 )
 
 func init() {
+	fmt.Println("mongo:init()")
 	nosql.Register(Type, nosql.Registration{
 		NewFunc:      Open,
 		InitFunc:     Create,
@@ -29,6 +30,7 @@ func init() {
 }
 
 func dialMongo(addr string, options graph.Options) (*mgo.Session, error) {
+	fmt.Println("mongo:dialMongo()")
 	if connVal, ok := options["session"]; ok {
 		if conn, ok := connVal.(*mgo.Session); ok {
 			return conn, nil
@@ -60,6 +62,7 @@ func dialMongo(addr string, options graph.Options) (*mgo.Session, error) {
 }
 
 func dialDB(addr string, opt graph.Options) (*DB, error) {
+	fmt.Println("mongo:dialDB()")
 	sess, err := dialMongo(addr, opt)
 	if err != nil {
 		return nil, err
@@ -100,6 +103,7 @@ func (db *DB) Close() error {
 	return nil
 }
 func (db *DB) EnsureIndex(ctx context.Context, col string, primary nosql.Index, secondary []nosql.Index) error {
+	fmt.Println(fmt.Sprintf("mongo:EnsureIndex() %s ", col))
 	if primary.Type != nosql.StringExact {
 		return fmt.Errorf("unsupported type of primary index: %v", primary.Type)
 	}
@@ -134,6 +138,7 @@ func (db *DB) EnsureIndex(ctx context.Context, col string, primary nosql.Index, 
 	return nil
 }
 func toBsonValue(v nosql.Value) interface{} {
+	fmt.Println("mongo:toBsonValue()")
 	switch v := v.(type) {
 	case nil:
 		return nil
@@ -158,6 +163,7 @@ func toBsonValue(v nosql.Value) interface{} {
 	}
 }
 func fromBsonValue(v interface{}) nosql.Value {
+	fmt.Println("mongo:fromBsonValue()")
 	switch v := v.(type) {
 	case nil:
 		return nil
@@ -195,16 +201,19 @@ func fromBsonValue(v interface{}) nosql.Value {
 	}
 }
 func toBsonDoc(d nosql.Document) bson.M {
+	fmt.Println("mongo:toBsonDoc()")
 	if d == nil {
 		return nil
 	}
 	m := make(bson.M, len(d))
 	for k, v := range d {
+		fmt.Printf("mongo:toBsonDoc() key %s \n", k)
 		m[k] = toBsonValue(v)
 	}
 	return m
 }
 func fromBsonDoc(d bson.M) nosql.Document {
+	fmt.Println("mongo:fromBsonDoc()")
 	if d == nil {
 		return nil
 	}
@@ -218,6 +227,7 @@ func fromBsonDoc(d bson.M) nosql.Document {
 const idField = "_id"
 
 func (c *collection) getKey(m bson.M) nosql.Key {
+	fmt.Println("mongo:getKey()")
 	if !c.compPK {
 		// key field renamed to _id - just return it
 		if v, ok := m[idField].(string); ok {
@@ -236,6 +246,7 @@ func (c *collection) getKey(m bson.M) nosql.Key {
 }
 
 func (c *collection) setKey(m bson.M, key nosql.Key) {
+	fmt.Println("mongo:setKey()")
 	if !c.compPK {
 		// delete source field, since we already added it as _id
 		delete(m, c.primary.Fields[0])
@@ -247,6 +258,7 @@ func (c *collection) setKey(m bson.M, key nosql.Key) {
 }
 
 func (c *collection) convDoc(m bson.M) nosql.Document {
+	fmt.Println("mongo:convDoc()")
 	if c.compPK {
 		// key field computed from multiple source fields - remove it
 		delete(m, idField)
@@ -261,6 +273,7 @@ func (c *collection) convDoc(m bson.M) nosql.Document {
 }
 
 func getOrGenID(key nosql.Key) (nosql.Key, string) {
+	fmt.Println("mongo:getOrGenID()")
 	var mid string
 	if key == nil {
 		// TODO: maybe allow to pass custom key types as nosql.Key
@@ -274,6 +287,7 @@ func getOrGenID(key nosql.Key) (nosql.Key, string) {
 }
 
 func (c *collection) convIns(key nosql.Key, d nosql.Document) (nosql.Key, bson.M) {
+	fmt.Println("mongo:convIns()")
 	m := toBsonDoc(d)
 
 	var mid string
@@ -296,6 +310,7 @@ func compKey(key nosql.Key) string {
 }
 
 func (db *DB) Insert(ctx context.Context, col string, key nosql.Key, d nosql.Document) (nosql.Key, error) {
+	fmt.Printf("mongo:Insert() %s | %s \n", col, compKey(key))
 	c, ok := db.colls[col]
 	if !ok {
 		return nil, fmt.Errorf("collection %q not found", col)
@@ -307,6 +322,7 @@ func (db *DB) Insert(ctx context.Context, col string, key nosql.Key, d nosql.Doc
 	return key, nil
 }
 func (db *DB) FindByKey(ctx context.Context, col string, key nosql.Key) (nosql.Document, error) {
+	fmt.Printf("mongo:FindByKey() %s %s \n", col, compKey(key))
 	c := db.colls[col]
 	var m bson.M
 	err := c.c.FindId(compKey(key)).One(&m)
@@ -315,17 +331,23 @@ func (db *DB) FindByKey(ctx context.Context, col string, key nosql.Key) (nosql.D
 	} else if err != nil {
 		return nil, err
 	}
-	return c.convDoc(m), nil
+
+	doc := c.convDoc(m)
+	fmt.Printf("mongo:FindByKey() %+v\n", doc)
+	return doc, nil
 }
 func (db *DB) Query(col string) nosql.Query {
+	fmt.Printf("mongo:Query() %s \n", col)
 	c := db.colls[col]
 	return &Query{c: &c}
 }
 func (db *DB) Update(col string, key nosql.Key) nosql.Update {
+	fmt.Printf("mongo:Update() %s | %s\n", col, compKey(key))
 	c := db.colls[col]
 	return &Update{col: &c, key: key, update: make(bson.M)}
 }
 func (db *DB) Delete(col string) nosql.Delete {
+	fmt.Printf("mongo:Delete() %s \n", col)
 	c := db.colls[col]
 	return &Delete{col: &c}
 }
@@ -388,6 +410,8 @@ type Query struct {
 }
 
 func (q *Query) WithFields(filters ...nosql.FieldFilter) nosql.Query {
+	fmt.Printf("mongo:Query:WithFields() \n")
+	fmt.Printf("mongo:Query:WithFields() Filters %+v\n", filters)
 	m := buildFilters(filters)
 	if q.query == nil {
 		q.query = m
@@ -397,10 +421,12 @@ func (q *Query) WithFields(filters ...nosql.FieldFilter) nosql.Query {
 	return q
 }
 func (q *Query) Limit(n int) nosql.Query {
+	fmt.Printf("mongo:Query:Limit() \n")
 	q.limit = n
 	return q
 }
 func (q *Query) build() *mgo.Query {
+	fmt.Printf("mongo:Query:build() \n")
 	var m interface{}
 	if q.query != nil {
 		m = q.query
@@ -413,9 +439,11 @@ func (q *Query) build() *mgo.Query {
 }
 func (q *Query) Count(ctx context.Context) (int64, error) {
 	n, err := q.build().Count()
+	fmt.Printf("mongo:Query:Count() : result %s \n", n)
 	return int64(n), err
 }
 func (q *Query) One(ctx context.Context) (nosql.Document, error) {
+	fmt.Printf("mongo:Query:One() \n")
 	var m bson.M
 	err := q.build().One(&m)
 	if err == mgo.ErrNotFound {
@@ -426,6 +454,7 @@ func (q *Query) One(ctx context.Context) (nosql.Document, error) {
 	return q.c.convDoc(m), nil
 }
 func (q *Query) Iterate() nosql.DocIterator {
+	fmt.Printf("mongo:Query:Iterate() \n")
 	it := q.build().Iter()
 	return &Iterator{it: it, c: q.c}
 }
@@ -437,19 +466,24 @@ type Iterator struct {
 }
 
 func (it *Iterator) Next(ctx context.Context) bool {
+	fmt.Printf("mongo:Iterator:Next() \n")
 	it.res = make(bson.M)
 	return it.it.Next(&it.res)
 }
 func (it *Iterator) Err() error {
+	fmt.Printf("mongo:Iterator:Err() \n")
 	return it.it.Err()
 }
 func (it *Iterator) Close() error {
+	fmt.Printf("mongo:Iterator:Close() \n")
 	return it.it.Close()
 }
 func (it *Iterator) Key() nosql.Key {
+	fmt.Printf("mongo:Iterator:Key() \n")
 	return it.c.getKey(it.res)
 }
 func (it *Iterator) Doc() nosql.Document {
+	fmt.Printf("mongo:Iterator:Doc() \n")
 	return it.c.convDoc(it.res)
 }
 
@@ -505,6 +539,7 @@ type Update struct {
 }
 
 func (u *Update) Inc(field string, dn int) nosql.Update {
+	fmt.Printf("mongo::Update::Inc() %s \n", field)
 	inc, _ := u.update["$inc"].(bson.M)
 	if inc == nil {
 		inc = make(bson.M)
@@ -514,6 +549,7 @@ func (u *Update) Inc(field string, dn int) nosql.Update {
 	return u
 }
 func (u *Update) Push(field string, v nosql.Value) nosql.Update {
+	fmt.Printf("mongo::Update::Push() %s \n", field)
 	push, _ := u.update["$push"].(bson.M)
 	if push == nil {
 		push = make(bson.M)
@@ -523,6 +559,7 @@ func (u *Update) Push(field string, v nosql.Value) nosql.Update {
 	return u
 }
 func (u *Update) Upsert(d nosql.Document) nosql.Update {
+	fmt.Printf("mongo::Update::Upsert()\n")
 	u.upsert = toBsonDoc(d)
 	if u.upsert == nil {
 		u.upsert = make(bson.M)
@@ -531,6 +568,7 @@ func (u *Update) Upsert(d nosql.Document) nosql.Update {
 	return u
 }
 func (u *Update) Do(ctx context.Context) error {
+	fmt.Printf("mongo::Udpdate::Do()\n")
 	key := compKey(u.key)
 	var err error
 	if u.upsert != nil {
@@ -545,6 +583,7 @@ func (u *Update) Do(ctx context.Context) error {
 }
 
 func (db *DB) BatchInsert(col string) nosql.DocWriter {
+	fmt.Printf("mongo::BatchInsert() %s \n", col)
 	c := db.colls[col]
 	return &inserter{col: &c}
 }
@@ -560,6 +599,7 @@ type inserter struct {
 }
 
 func (w *inserter) WriteDoc(ctx context.Context, key nosql.Key, d nosql.Document) error {
+	fmt.Printf("mongo::inserter:WriteDoc() %s \n", compKey(key))
 	if len(w.buf) >= batchSize {
 		if err := w.Flush(ctx); err != nil {
 			return err

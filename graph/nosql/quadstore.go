@@ -166,6 +166,7 @@ type QuadStore struct {
 }
 
 func ensureIndexes(ctx context.Context, db Database) error {
+	fmt.Println("quadstore:ensureIndexes()")
 	err := db.EnsureIndex(ctx, colLog, Index{
 		Fields: []string{fldLogID},
 		Type:   StringExact,
@@ -201,6 +202,7 @@ func ensureIndexes(ctx context.Context, db Database) error {
 }
 
 func getKeyForQuad(t quad.Quad) Key {
+	fmt.Println("quadstore:getKeyForQuad()")
 	return Key{
 		hashOf(t.Subject),
 		hashOf(t.Predicate),
@@ -276,6 +278,7 @@ func checkQuadValid(q Document) bool {
 }
 
 func (qs *QuadStore) checkValidQuad(ctx context.Context, key Key) (bool, error) {
+	fmt.Println("quadstore:checkValidQuad()")
 	q, err := qs.db.FindByKey(ctx, colQuads, key)
 	if err == ErrNotFound {
 		return false, nil
@@ -319,6 +322,7 @@ func (qs *QuadStore) appendLog(ctx context.Context, deltas []graph.Delta) ([]Key
 }
 
 func (qs *QuadStore) ApplyDeltas(deltas []graph.Delta, ignoreOpts graph.IgnoreOpts) error {
+	fmt.Println("quadstore:ApplyDeltas()")
 	ctx := context.TODO()
 	ids := make(map[quad.Value]int)
 
@@ -593,6 +597,7 @@ func (qs *QuadStore) ValueOf(s quad.Value) graph.Value {
 }
 
 func (qs *QuadStore) NameOf(v graph.Value) quad.Value {
+	fmt.Println("quadstore:NameOf()")
 	if v == nil {
 		return nil
 	} else if v, ok := v.(graph.PreFetchedValue); ok {
